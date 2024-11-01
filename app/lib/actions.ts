@@ -1,10 +1,9 @@
 'use server';
 
-import { any, z } from 'zod';
+import { z } from 'zod';
 import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { CreateInvoice } from '../ui/invoices/buttons';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
 
@@ -35,6 +34,11 @@ export type State = {
   };
   message?: string | null;
 };
+const CreateInvoice = z.object({
+  customerId: z.string().nonempty("Customer ID is required"),
+  amount: z.preprocess((val) => Number(val), z.number().min(1, "Amount must be greater than 0")),
+  status: z.string().nonempty("Status is required"),
+});
 export async function createInvoice(prevState: State, formData: FormData) {
   // Validate form using Zod
   const validatedFields = CreateInvoice.safeParse({
@@ -42,20 +46,18 @@ export async function createInvoice(prevState: State, formData: FormData) {
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
- 
-  // If form validation fails, return errors early. Otherwise, continue.
+
+  // If form validation fails, throw a validation error
   if (!validatedFields.success) {
-    return {
-      errors: validatedFields.error.flatten().fieldErrors,
-      message: 'Missing Fields. Failed to Create Invoice.',
-    };
+    const errorMessages = validatedFields.error.flatten().fieldErrors;
+    throw new Error(`Validation Error: ${JSON.stringify(errorMessages)}`);
   }
- 
+
   // Prepare data for insertion into the database
   const { customerId, amount, status } = validatedFields.data;
   const amountInCents = amount * 100;
   const date = new Date().toISOString().split('T')[0];
- 
+
   // Insert data into the database
   try {
     await sql`
@@ -63,16 +65,15 @@ export async function createInvoice(prevState: State, formData: FormData) {
       VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
     `;
   } catch (error) {
-    // If a database error occurs, return a more specific error.
-    return {
-      message: 'Database Error: Failed to Create Invoice.',
-    };
+    // If a database error occurs, throw a database-specific error
+    throw new Error('Database Error: Failed to Create Invoice.');
   }
- 
+
   // Revalidate the cache for the invoices page and redirect the user.
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
+
 export async function deleteInvoice(id: string) {
   throw new Error('Failed to Delete Invoice');
   try {
