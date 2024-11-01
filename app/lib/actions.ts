@@ -36,11 +36,15 @@ export type State = {
   message?: string | null;
 };
 export async function createInvoice(prevState: State, formData: FormData) {
-  const validatedFields = CreateInvoice.Parse({
+  const validatedFields = UpdateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
+
+
+
+
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
@@ -68,7 +72,6 @@ export async function createInvoice(prevState: State, formData: FormData) {
 }
 
 export async function deleteInvoice(id: string) {
-  throw new Error('Failed to Delete Invoice');
   try {
     await sql`DELETE FROM invoices WHERE id = ${id}`;
     revalidatePath('/dashboard/invoices');
@@ -77,9 +80,6 @@ export async function deleteInvoice(id: string) {
     return { message: 'Database Error: Failed to Delete Invoice.' };
   }
 }
-
-
-
 
 const FormSchema = z.object({
   id: z.string(),
@@ -96,8 +96,6 @@ const FormSchema = z.object({
 });
 
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
-
-
 
 export async function updateInvoice(
   id: string,
